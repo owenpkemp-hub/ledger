@@ -1,0 +1,965 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Ledger</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
+<meta name="theme-color" content="#0A0A0B">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Ledger">
+<style>
+/* Obsidian product system — Ledger. One accent: gold #C9A227. No blends, no glows, no card soup. */
+:root{
+  --bg:#0A0A0B; --panel:#0E0E10; --line:rgba(255,255,255,.08); --line2:rgba(255,255,255,.16);
+  --ink:#F5F5F4; --mut:#A1A1AA; --faint:#71717A;
+  --accent:#C9A227; --accent-ink:#0A0A0B;
+  --grotesk:-apple-system,"SF Pro Display","Helvetica Neue",Inter,system-ui,sans-serif;
+  --mono:ui-monospace,"SF Mono",Menlo,monospace;
+}
+*{box-sizing:border-box}
+html{background:var(--bg)}
+body{
+  margin:0; color:var(--ink); background:var(--bg);
+  font-family:var(--grotesk); font-variant-numeric:tabular-nums;
+  -webkit-font-smoothing:antialiased; min-height:100vh;
+}
+::selection{background:var(--accent);color:var(--accent-ink)}
+.obs-noise{position:fixed;inset:0;z-index:2000;pointer-events:none;opacity:.04;filter:url(#obs-noise)}
+.wrap{max-width:640px;margin:0 auto;padding:28px 20px 64px;container-type:inline-size}
+
+/* ---------- sticky masthead ---------- */
+.mast{
+  display:flex;align-items:baseline;gap:12px;
+  position:sticky;top:0;z-index:20;
+  background:#0A0A0B;background:color-mix(in srgb,#0A0A0B 82%,transparent);
+  -webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px);
+  border-bottom:1px solid var(--line);padding:14px 0;margin-bottom:4px;
+}
+.mast h1{font-size:22px;font-weight:700;letter-spacing:-.02em;margin:0;line-height:1}
+.mast .tag{color:var(--mut);font-size:13px}
+.mast .spacer{flex:1}
+.demobtn{
+  background:transparent;color:var(--ink);border:1px solid var(--line2);border-radius:8px;
+  padding:8px 12px;font-size:13px;font-weight:650;cursor:pointer;white-space:nowrap;
+  transition:border-color 150ms ease,color 150ms ease;
+}
+.demobtn:hover{border-color:var(--accent)}
+body.demo-on .demobtn{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+.lede{color:var(--mut);font-size:14.5px;line-height:1.6;margin:14px 0 0;max-width:52ch}
+
+/* ---------- demo banner: a hairline row, not a box ---------- */
+.demobanner{display:none;margin:20px 0 0;padding:12px 0;border-top:1px solid var(--line);border-bottom:1px solid var(--line);align-items:center;gap:10px}
+body.demo-on .demobanner{display:flex}
+.demobanner .pill{
+  flex:0 0 auto;color:var(--accent);font-family:var(--mono);font-size:11px;font-weight:700;
+  letter-spacing:.12em;white-space:nowrap;
+}
+.demobanner p{margin:0;font-size:13.5px;line-height:1.5;color:var(--mut)}
+.demobanner button{
+  flex:0 0 auto;margin-left:auto;background:var(--accent);color:var(--accent-ink);border:0;border-radius:8px;
+  padding:8px 12px;font-size:13px;font-weight:700;cursor:pointer;
+}
+
+/* ---------- month switcher ---------- */
+.months{
+  display:flex;align-items:center;justify-content:space-between;gap:10px;
+  margin:26px 0 4px;padding-bottom:16px;border-bottom:1px solid var(--line);
+}
+.months .chev{
+  width:40px;height:40px;border-radius:8px;background:transparent;color:var(--ink);
+  border:1px solid var(--line);font-size:20px;cursor:pointer;flex:0 0 auto;line-height:1;
+  transition:border-color 150ms ease,color 150ms ease;
+}
+.months .chev:hover{border-color:var(--accent);color:var(--accent)}
+.months .center{text-align:center}
+.months .mname{font-size:28px;font-weight:700;letter-spacing:-.02em;line-height:1.1}
+.months .mkey{color:var(--faint);font-family:var(--mono);font-size:11px;letter-spacing:.12em;text-transform:uppercase;margin-top:4px}
+
+/* ---------- tabs: hairline underline controls ---------- */
+.tabs{display:flex;gap:26px;border-bottom:1px solid var(--line);margin:0 0 8px}
+.tabs button{
+  background:transparent;color:var(--mut);border:0;border-bottom:2px solid transparent;
+  padding:13px 2px 11px;margin-bottom:-1px;font-size:15px;font-weight:600;cursor:pointer;
+  transition:color 150ms ease,border-color 150ms ease;
+}
+.tabs button:hover{color:var(--ink)}
+.tabs button.active{color:var(--ink);border-bottom-color:var(--accent)}
+.view{display:none}
+.view.active{display:block}
+
+/* ---------- sections: hairlines and whitespace, not cards ---------- */
+.panel{background:transparent;border:0;border-bottom:1px solid var(--line);border-radius:0;padding:22px 0;margin-bottom:0}
+.panel.soft{background:transparent}
+.eyebrow{
+  color:var(--mut);font-size:11px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;margin:0 0 10px;
+  display:flex;align-items:center;gap:8px;
+}
+.demopill{display:none;color:var(--accent);font-family:var(--mono);font-size:11px;font-weight:700;letter-spacing:.12em}
+body.demo-on .demopill{display:inline-block}
+.panel h2{font-size:19px;font-weight:650;margin:0 0 6px;letter-spacing:-.015em}
+.hint{color:var(--mut);font-size:14px;line-height:1.65;margin:6px 0 0}
+.demoline{display:none;color:var(--accent);font-size:12.5px;font-weight:700;margin:8px 0 0}
+body.demo-on .demoline{display:block}
+
+/* ---------- hero: left-aligned, mono numeral, no card ---------- */
+.hero{background:transparent;border:0;border-bottom:1px solid var(--line);border-radius:0;padding:24px 0 20px;margin-bottom:0}
+.hero .leftlbl{color:var(--mut);font-size:11px;font-weight:700;letter-spacing:.12em;text-transform:uppercase}
+.hero .bignum{
+  font-family:var(--mono);font-size:clamp(44px,12vw,72px);font-weight:600;letter-spacing:-.02em;line-height:1.05;margin:8px 0 2px;
+}
+.hero .bignum.mint,.hero .bignum.warn{color:var(--ink)}
+.hero .ofline{color:var(--mut);font-size:14.5px}
+.hero .ofline b{color:var(--ink);font-family:var(--mono);font-weight:600}
+/* spent vs remaining: thin 4px bar with an even-pace tick */
+.track{position:relative;height:4px;background:rgba(255,255,255,.08);border-radius:2px;margin:22px 0 10px}
+.track .fill{position:absolute;left:0;top:0;bottom:0;border-radius:2px;background:var(--accent);width:0%;transition:width 200ms ease}
+.track .fill.over{background:var(--accent)}
+.track .tick{position:absolute;top:-4px;bottom:-4px;width:2px;background:var(--ink);display:none}
+.track .tick.on{display:block}
+.barlabels{display:flex;justify-content:space-between;color:var(--mut);font-size:13.5px}
+.barlabels b{color:var(--ink);font-family:var(--mono);font-weight:600}
+.pace{
+  margin-top:16px;padding-top:14px;border-top:1px solid var(--line);
+  display:flex;flex-direction:column;gap:6px;
+}
+@container (min-width:520px){.pace{flex-direction:row;justify-content:space-between;align-items:baseline}}
+.pace .verdict{font-size:15px;font-weight:650}
+.pace .verdict.good{color:var(--accent)}
+.pace .verdict.bad{color:var(--ink)}
+.pace .verdict.flat{color:var(--mut)}
+.pace .dayline{color:var(--mut);font-family:var(--mono);font-size:12.5px;white-space:nowrap}
+.quickadd{
+  display:block;width:100%;margin-top:20px;background:var(--accent);color:var(--accent-ink);border:0;
+  border-radius:8px;padding:15px;font-size:16px;font-weight:700;cursor:pointer;letter-spacing:-.01em;
+  transition:filter 150ms ease;
+}
+.quickadd:hover{filter:brightness(1.08)}
+.quickadd:active{transform:translateY(1px)}
+
+/* ---------- savings meter: thin bar ---------- */
+.meter{height:4px;background:rgba(255,255,255,.08);border-radius:2px;overflow:hidden;margin:14px 0 6px}
+.meter>i{display:block;height:100%;background:var(--accent);border-radius:2px;width:0%;transition:width 200ms ease}
+.meterrow{display:flex;justify-content:space-between;color:var(--mut);font-size:13.5px}
+.meterrow b{color:var(--ink);font-family:var(--mono);font-weight:600}
+
+/* ---------- forms ---------- */
+label{display:block;color:var(--mut);font-size:11px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;margin:16px 0 6px}
+input,select{
+  width:100%;background:var(--panel);color:var(--ink);border:1px solid var(--line);
+  border-radius:8px;padding:12px 14px;font-size:16px;outline:none;
+  transition:border-color 150ms ease;
+}
+input:focus,select:focus{border-color:var(--accent)}
+input[type=number]{font-family:var(--mono)}
+.bignum-input{font-family:var(--mono);font-size:24px;font-weight:600;letter-spacing:-.02em;padding:14px 16px}
+button,.btn{
+  background:transparent;color:var(--ink);border:1px solid var(--line2);border-radius:8px;
+  padding:11px 16px;font-size:15px;font-weight:650;cursor:pointer;
+  transition:border-color 150ms ease;
+}
+button:hover{border-color:var(--accent)}
+button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+button.primary{background:var(--accent);color:var(--accent-ink);border-color:var(--accent);font-weight:700}
+button.danger{background:transparent;color:var(--mut);border-color:var(--line);padding:6px 12px;font-size:13px;border-radius:8px}
+.row{display:flex;gap:10px;align-items:end}
+.row>*{flex:1}
+.row .shrink{flex:0 0 auto}
+.row:has(input:focus) label{color:var(--ink)}
+body.demo-on .editzone{opacity:.5;pointer-events:none}
+body.demo-on .editzone input,body.demo-on .editzone select,body.demo-on .editzone button{cursor:not-allowed}
+/* kind switch: ghost buttons, accent border on active */
+.kindswitch{display:flex;gap:8px}
+.kindswitch button{
+  flex:1;padding:13px;border-radius:8px;font-size:15px;font-weight:650;
+  background:transparent;color:var(--mut);border:1px solid var(--line);
+}
+.kindswitch button.on{background:transparent;color:var(--ink);border-color:var(--accent)}
+
+/* ---------- lists: hairline rows ---------- */
+.entry{display:flex;justify-content:space-between;gap:12px;padding:14px 0;border-bottom:1px solid var(--line);align-items:center}
+.entry:last-child{border-bottom:0}
+.entry .meta{color:var(--mut);font-size:13px;margin-top:3px}
+.entry .amt{font-family:var(--mono);font-weight:700;white-space:nowrap;font-size:16px}
+.entry .amt.saving{color:var(--accent)}
+.entry .right{display:flex;align-items:center;gap:10px}
+.cat{display:flex;justify-content:space-between;gap:10px;padding:13px 0;border-bottom:1px solid var(--line);align-items:center}
+.cat:last-child{border-bottom:0}
+.cat .amt{font-family:var(--mono);font-weight:700}
+.cat .right{display:flex;align-items:center;gap:10px}
+
+/* ---------- empty states: plain text, left-aligned ---------- */
+.blank{padding:8px 0 2px}
+.blank .serifline{font-size:19px;font-weight:650;line-height:1.35;color:var(--ink);margin:0 0 8px}
+.blank p{color:var(--mut);font-size:14px;line-height:1.65;margin:0}
+
+.msg{color:var(--accent);font-size:14px;margin-top:12px;font-weight:700}
+.footer{color:var(--faint);font-size:12.5px;line-height:1.7;margin-top:30px}
+
+
+/* ---------- motion system: native APIs only, enhancement-only ---------- */
+:root{ --ease-out:cubic-bezier(.22,1,.36,1); --ease-spring:var(--ease-out); }
+@supports (transition-timing-function:linear(0,1)){
+  :root{ --ease-spring:linear(0,.1 10%,.3 22%,.55 36%,.76 50%,.89 62%,.97 74%,1.004 84%,1 92%,1); }
+}
+@media (prefers-reduced-motion:no-preference){
+  ::view-transition-old(root), ::view-transition-new(root){ animation-duration:280ms; animation-timing-function:var(--ease-spring); }
+  ::view-transition-old(hero-num), ::view-transition-new(hero-num){ animation-duration:300ms; animation-timing-function:var(--ease-spring); }
+  .hero .bignum{ view-transition-name:hero-num; }
+  .entry, .cat{ transition:opacity 200ms var(--ease-spring), transform 200ms var(--ease-spring); }
+  @starting-style{ .entry, .cat{ opacity:0; transform:translateY(6px); } }
+  .entry.is-leaving, .cat.is-leaving{ opacity:0 !important; transform:translateY(-4px) !important; }
+  .demobanner{ transition:opacity 200ms var(--ease-spring), display 200ms allow-discrete; }
+  @starting-style{ body.demo-on .demobanner{ opacity:0; } }
+  .obs-progress{ position:fixed; top:0; left:0; height:2px; width:100%; background:var(--accent); transform-origin:0 50%; transform:scaleX(0); z-index:100; }
+}
+@supports (animation-timeline:view()){
+  @media (prefers-reduced-motion:no-preference){
+    .panel{ animation:obs-reveal 600ms var(--ease-spring) both; animation-timeline:view(); animation-range:entry 0% cover 30%; }
+    .panel:nth-of-type(2){ animation-range:entry 8% cover 34%; }
+    .panel:nth-of-type(3){ animation-range:entry 16% cover 38%; }
+    @keyframes obs-reveal{ from{ opacity:0; transform:translateY(10px); } to{ opacity:1; transform:translateY(0); } }
+  }
+}
+@supports (animation-timeline:scroll()){
+  @media (prefers-reduced-motion:no-preference){
+    .obs-progress{ animation:obs-progress linear both; animation-timeline:scroll(root); }
+    @keyframes obs-progress{ to{ transform:scaleX(1); } }
+  }
+}
+
+/* ---------- charts: hand-rolled SVG, Obsidian tokens, motion-law only ---------- */
+.chwrap{margin-top:6px}
+.chwrap svg{width:100%;height:auto;display:block}
+.chwrap text{font-family:var(--mono)}
+.ch-legend{color:var(--mut);font-size:12.5px;line-height:1.6;margin:8px 0 0}
+.ch-legend b{color:var(--ink);font-family:var(--mono);font-weight:600}
+@media (prefers-reduced-motion:no-preference){
+  .cbar-v{transform-box:fill-box;transform-origin:50% 100%;animation:cgrow 500ms var(--ease-spring) both}
+  .cbar-h{transform-box:fill-box;transform-origin:0 50%;animation:cgrowx 500ms var(--ease-spring) both}
+  .cfade{animation:cfade 600ms var(--ease-spring) both}
+  @keyframes cgrow{from{transform:scaleY(0)}to{transform:scaleY(1)}}
+  @keyframes cgrowx{from{transform:scaleX(0)}to{transform:scaleX(1)}}
+  @keyframes cfade{from{opacity:0}to{opacity:1}}
+}
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs><filter id="obs-noise"><feTurbulence type="fractalNoise" baseFrequency="0.8" numOctaves="2" stitchTiles="stitch"/><feColorMatrix type="saturate" values="0"/></filter></defs></svg><div class="obs-noise" aria-hidden="true"></div><div class="obs-progress" aria-hidden="true"></div>
+<div class="wrap">
+  <header class="mast">
+    <h1>Ledger</h1>
+    <span class="tag">Monthly money, kept honestly</span>
+    <div class="spacer"></div>
+    <button class="demobtn" id="demoToggle">View demo</button>
+  </header>
+  <p class="lede">One month at a time. Set a budget, log as you go, and see exactly where the month stands.</p>
+
+  <div class="demobanner" id="demoBanner">
+    <span class="pill">DEMO DATA</span>
+    <p>These are example numbers, not real finances. Nothing here is saved as your own.</p>
+    <button id="demoClear">Clear demo</button>
+  </div>
+
+  <div class="months">
+    <button class="chev" id="prevMonth" aria-label="Previous month">&lsaquo;</button>
+    <div class="center">
+      <div class="mname" id="monthLabel">This month</div>
+      <div class="mkey" id="monthKey">&nbsp;</div>
+    </div>
+    <button class="chev" id="nextMonth" aria-label="Next month">&rsaquo;</button>
+  </div>
+
+  <nav class="tabs">
+    <button data-tab="today" class="active">Today</button>
+    <button data-tab="budget">Budget</button>
+    <button data-tab="activity">Activity</button>
+    <button data-tab="plan">Plan</button>
+    <button data-tab="charts">Charts</button>
+  </nav>
+
+  <!-- TODAY -->
+  <section class="view active" id="view-today">
+    <div class="hero">
+      <p class="eyebrow">The month so far <span class="demopill">Demo data</span></p>
+      <div class="leftlbl">Left to spend</div>
+      <div class="bignum" id="hRemaining">&mdash;</div>
+      <div class="ofline" id="hOfLine">Set a budget to give this month a shape.</div>
+      <div class="track" id="hTrack">
+        <div class="fill" id="hFill"></div>
+        <div class="tick" id="hTick"></div>
+      </div>
+      <div class="barlabels">
+        <span>Spent <b id="hSpent">&mdash;</b></span>
+        <span>Budget <b id="hBudget">&mdash;</b></span>
+      </div>
+      <div class="pace">
+        <span class="verdict flat" id="hVerdict">Set a monthly budget to see your pace.</span>
+        <span class="dayline" id="hDayLine"></span>
+      </div>
+      <button class="quickadd" id="quickAdd">＋&nbsp; Log spending</button>
+    </div>
+    <div class="panel">
+      <p class="eyebrow">Savings</p>
+      <h2>The cushion grows</h2>
+      <p class="hint" id="sText">Set a savings target in the Budget tab.</p>
+      <div class="meter" id="sMeter"><i></i></div>
+      <div class="meterrow"><span id="sDetail"></span><span id="sPct"></span></div>
+    </div>
+  </section>
+
+  <!-- BUDGET -->
+  <section class="view" id="view-budget">
+    <div class="panel">
+      <p class="eyebrow">Monthly plan</p>
+      <h2>What is this month for?</h2>
+      <p class="demoline">Demo data &mdash; example figures</p>
+      <div class="editzone">
+        <label for="inBudget">Spending budget</label>
+        <input id="inBudget" class="bignum-input" type="number" inputmode="decimal" min="0" step="0.01" placeholder="0.00">
+        <label for="inSavings">Savings target</label>
+        <input id="inSavings" class="bignum-input" type="number" inputmode="decimal" min="0" step="0.01" placeholder="0.00">
+      </div>
+      <p class="hint">Budgets save automatically and apply to the month shown above.</p>
+    </div>
+    <div class="panel">
+      <p class="eyebrow">Breakdown</p>
+      <h2>Split it into buckets</h2>
+      <p class="demoline">Demo data &mdash; example figures</p>
+      <div id="catList">
+        <div class="blank"><p class="serifline">No buckets yet.</p><p>Add a category below to give part of the month a name and a number.</p></div>
+      </div>
+      <div class="row editzone">
+        <div><label for="catName">Category</label><input id="catName" type="text" placeholder="e.g. Groceries"></div>
+        <div><label for="catAmt">Amount</label><input id="catAmt" type="number" inputmode="decimal" min="0" step="0.01" placeholder="0.00"></div>
+        <div class="shrink"><label>&nbsp;</label><button class="primary" id="addCat">Add</button></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ACTIVITY -->
+  <section class="view" id="view-activity">
+    <div class="panel">
+      <p class="eyebrow">Log it</p>
+      <h2>Record a movement</h2>
+      <div class="editzone">
+        <label>Type</label>
+        <div class="kindswitch">
+          <button id="kindSpend" class="on">Spend</button>
+          <button id="kindSaving">Saving</button>
+        </div>
+        <div class="row">
+          <div><label for="eDate">Date</label><input id="eDate" type="date"></div>
+          <div><label for="eAmt">Amount</label><input id="eAmt" type="number" inputmode="decimal" min="0" step="0.01" placeholder="0.00"></div>
+        </div>
+        <label for="eNote">Note</label>
+        <input id="eNote" type="text" placeholder="What was it?">
+        <div style="margin-top:18px"><button class="primary" id="addEntry" style="width:100%;padding:15px">Add entry</button></div>
+      </div>
+      <p class="demoline">Demo mode is read-only &mdash; clear the demo to add your own entries.</p>
+    </div>
+    <div class="panel">
+      <p class="eyebrow">History</p>
+      <h2>Entries this month</h2>
+      <p class="demoline">Demo data &mdash; example entries</p>
+      <p class="hint" id="aTotals">No entries this month yet.</p>
+      <div id="entryList">
+        <div class="blank"><p class="serifline">Nothing here yet.</p><p>Your first entry starts the story &mdash; log one above.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- PLAN -->
+  <section class="view" id="view-plan">
+    <div class="panel">
+      <p class="eyebrow">Look ahead</p>
+      <h2>Next month, already planned</h2>
+      <p class="hint">Copy this month's budget, savings target, and category budgets forward to <b id="nextMonthLabel"></b>, so next month starts with a plan in place.</p>
+      <button class="primary" id="copyBudget" style="margin-top:14px">Copy budget to next month</button>
+      <p class="msg" id="planMsg"></p>
+      <p class="demoline">Demo mode is read-only &mdash; clear the demo to plan your own months.</p>
+    </div>
+    <div class="panel">
+      <p class="eyebrow">Take it with you</p>
+      <h2>Export</h2>
+      <p class="hint">Download this month's entries as a CSV file you can open in any spreadsheet.</p>
+      <button id="exportCsv" style="margin-top:14px">Download CSV for this month</button>
+      <p class="msg" id="exportMsg"></p>
+    </div>
+  </section>
+
+  <!-- CHARTS -->
+  <section class="view" id="view-charts">
+    <div class="panel">
+      <p class="eyebrow">Charts <span class="demopill">Demo data</span></p>
+      <h2>See the month</h2>
+      <p class="demoline">Demo data &mdash; example figures</p>
+      <p class="hint">Every chart reads the month shown above. Switch months and the charts follow.</p>
+    </div>
+    <div class="panel">
+      <p class="eyebrow">Pace trajectory</p>
+      <h2>The month against its own pace</h2>
+      <div class="chwrap" id="chartPace"></div>
+      <p class="ch-legend" id="paceLegend"></p>
+    </div>
+    <div class="panel">
+      <p class="eyebrow">By category</p>
+      <h2>Where the money went</h2>
+      <div class="chwrap" id="chartCat"></div>
+      <p class="ch-legend">Matched by note to your buckets; the rest lands in Other.</p>
+    </div>
+    <div class="panel">
+      <p class="eyebrow">Over time</p>
+      <h2>Spending, day by day</h2>
+      <div class="chwrap" id="chartDays"></div>
+    </div>
+    <div class="panel">
+      <p class="eyebrow">Budget vs actual</p>
+      <h2>Plan against reality</h2>
+      <div class="chwrap" id="chartBudget"></div>
+      <p class="ch-legend">Outline = budget, solid = actual spend.</p>
+    </div>
+    <div class="panel">
+      <p class="eyebrow">Savings</p>
+      <h2>The cushion, growing</h2>
+      <div class="chwrap" id="chartSave"></div>
+    </div>
+  </section>
+
+  <p class="footer">Private by design &mdash; everything stays in this browser.<br>Demo figures are examples only, never real finances.</p>
+</div>
+
+<script>
+const KEY = 'ledger-v1';
+const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+/* Demo dataset: round, generic example figures. Never real finances. */
+const DEMO = {
+  budget: '2000', savings: '400',
+  categories: [
+    { id: 'd1', name: 'Groceries', amount: 500 },
+    { id: 'd2', name: 'Transport', amount: 200 },
+    { id: 'd3', name: 'Fun', amount: 150 }
+  ],
+  entries: [
+    { day: 2,  note: 'Groceries',       amount: 120, kind: 'spend'  },
+    { day: 5,  note: 'Fuel',            amount: 45,  kind: 'spend'  },
+    { day: 9,  note: 'Dining out',      amount: 60,  kind: 'spend'  },
+    { day: 12, note: 'Movie night',     amount: 25,  kind: 'spend'  },
+    { day: 16, note: 'Groceries',       amount: 80,  kind: 'spend'  },
+    { day: 18, note: 'Monthly savings', amount: 400, kind: 'saving' }
+  ]
+};
+let state = load();
+let demoOn = !!(state.demo);
+let entryKind = 'spend';
+let view = (() => { const n = new Date(); return { y: n.getFullYear(), m: n.getMonth() }; })();
+let activeTab = 'today';
+
+function load() {
+  try { const d = JSON.parse(localStorage.getItem(KEY)); if (d && d.budgets && d.entries) return d; } catch (e) {}
+  return { budgets: {}, entries: [] };
+}
+function save() { try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) {} }
+function ymKey(y, m) { return y + '-' + String(m + 1).padStart(2, '0'); }
+function viewKey() { return ymKey(view.y, view.m); }
+function daysIn(y, m) { return new Date(y, m + 1, 0).getDate(); }
+function money(n) { return '$' + Number(n || 0).toFixed(2); }
+function num(v) { const n = parseFloat(v); return isNaN(n) ? null : n; }
+function getBudget(key) {
+  if (demoOn) return { budget: DEMO.budget, savings: DEMO.savings, categories: DEMO.categories };
+  return state.budgets[key] || { budget: '', savings: '', categories: [] };
+}
+function monthEntries() {
+  if (demoOn) {
+    return DEMO.entries.map((e, i) => ({
+      id: 'demo-' + i, kind: e.kind, note: e.note, amount: e.amount,
+      date: viewKey() + '-' + String(Math.min(e.day, daysIn(view.y, view.m))).padStart(2, '0')
+    })).sort((a, b) => (b.date.localeCompare(a.date) || String(b.id).localeCompare(String(a.id))));
+  }
+  return state.entries.filter(e => e.date && e.date.startsWith(viewKey()))
+    .sort((a, b) => (b.date.localeCompare(a.date) || b.id - a.id));
+}
+function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); }
+function paceDayOf() {
+  const now = new Date(), dim = daysIn(view.y, view.m);
+  if (view.y === now.getFullYear() && view.m === now.getMonth()) return now.getDate();
+  if (view.y < now.getFullYear() || (view.y === now.getFullYear() && view.m < now.getMonth())) return dim;
+  return 0;
+}
+
+function renderMonth() {
+  document.getElementById('monthLabel').textContent = MONTHS[view.m] + ' ' + view.y;
+  document.getElementById('monthKey').textContent = viewKey();
+  const ny = view.m === 11 ? view.y + 1 : view.y, nm = view.m === 11 ? 0 : view.m + 1;
+  document.getElementById('nextMonthLabel').textContent = MONTHS[nm] + ' ' + ny;
+}
+
+function renderToday() {
+  const b = getBudget(viewKey());
+  const entries = monthEntries();
+  const spent = entries.filter(e => e.kind === 'spend').reduce((s, e) => s + Number(e.amount || 0), 0);
+  const saved = entries.filter(e => e.kind === 'saving').reduce((s, e) => s + Number(e.amount || 0), 0);
+  const budget = num(b.budget);
+  const dim = daysIn(view.y, view.m);
+  const pday = paceDayOf();
+  const remEl = document.getElementById('hRemaining');
+  const verdict = document.getElementById('hVerdict');
+  const fill = document.getElementById('hFill');
+  const tick = document.getElementById('hTick');
+  document.getElementById('hDayLine').textContent = 'Day ' + pday + ' of ' + dim + (demoOn ? ' · Demo data' : '');
+  document.getElementById('hSpent').textContent = money(spent);
+  if (budget == null) {
+    setHeroRemaining(null);
+    remEl.className = 'bignum';
+    document.getElementById('hOfLine').textContent = 'Set a budget to give this month a shape.';
+    document.getElementById('hBudget').textContent = '—';
+    fill.style.width = '0%';
+    fill.className = 'fill';
+    tick.className = 'tick';
+    verdict.textContent = 'Set a monthly budget to see your pace.';
+    verdict.className = 'verdict flat';
+  } else {
+    const remaining = budget - spent;
+    setHeroRemaining(remaining);
+    remEl.className = 'bignum ' + (remaining < 0 ? 'warn' : 'mint');
+    document.getElementById('hOfLine').innerHTML = 'of <b>' + money(budget) + '</b> budgeted this month';
+    document.getElementById('hBudget').textContent = money(budget);
+    const pct = budget > 0 ? Math.min(100, spent / budget * 100) : 0;
+    fill.style.width = pct + '%';
+    fill.className = 'fill' + (spent > budget ? ' over' : '');
+    const expected = budget * pday / dim;
+    const diff = spent - expected;
+    if (pday > 0 && budget > 0) {
+      tick.style.left = Math.min(100, pday / dim * 100) + '%';
+      tick.className = 'tick on';
+    } else {
+      tick.className = 'tick';
+    }
+    if (diff > 0) {
+      verdict.textContent = 'Over pace by ' + money(diff) + ' — spending is running ahead.';
+      verdict.className = 'verdict bad';
+    } else if (diff < 0) {
+      verdict.textContent = 'Ahead of pace by ' + money(-diff) + ' — room to breathe.';
+      verdict.className = 'verdict good';
+    } else {
+      verdict.textContent = 'Right on an even pace.';
+      verdict.className = 'verdict good';
+    }
+  }
+  const target = num(b.savings);
+  const sBar = document.querySelector('#sMeter i');
+  if (target == null || target <= 0) {
+    document.getElementById('sText').textContent = 'Set a savings target in the Budget tab.';
+    document.getElementById('sDetail').textContent = saved > 0 ? money(saved) + ' saved so far.' : '';
+    document.getElementById('sPct').textContent = '';
+    sBar.style.width = '0%';
+  } else {
+    const pct = Math.min(100, saved / target * 100);
+    sBar.style.width = pct + '%';
+    document.getElementById('sText').textContent = money(saved) + ' of ' + money(target) + ' saved (' + Math.round(pct) + '%).';
+    document.getElementById('sDetail').textContent = target - saved > 0 ? money(target - saved) + ' to go.' : 'Target reached.';
+    document.getElementById('sPct').textContent = Math.round(pct) + '%';
+  }
+}
+
+function renderBudget() {
+  const b = getBudget(viewKey());
+  document.getElementById('inBudget').value = b.budget;
+  document.getElementById('inSavings').value = b.savings;
+  const list = document.getElementById('catList');
+  if (!b.categories.length) {
+    list.innerHTML = '<div class="blank"><p class="serifline">No buckets yet.</p><p>Add a category below to give part of the month a name and a number.</p></div>';
+    return;
+  }
+  list.innerHTML = b.categories.map(c =>
+    '<div class="cat"><span><b>' + esc(c.name) + '</b></span><span class="right"><span class="amt">' + money(c.amount) + '</span>' +
+    (demoOn ? '' : ' <button class="danger" data-del-cat="' + c.id + '">Delete</button>') + '</span></div>').join('');
+}
+
+function renderActivity() {
+  const entries = monthEntries();
+  const spent = entries.filter(e => e.kind === 'spend').reduce((s, e) => s + Number(e.amount || 0), 0);
+  const saved = entries.filter(e => e.kind === 'saving').reduce((s, e) => s + Number(e.amount || 0), 0);
+  document.getElementById('aTotals').textContent =
+    entries.length + ' entries · Spent ' + money(spent) + ' · Saved ' + money(saved) + (demoOn ? ' · Demo data' : '');
+  const list = document.getElementById('entryList');
+  if (!entries.length) {
+    list.innerHTML = '<div class="blank"><p class="serifline">Nothing here yet.</p><p>Your first entry starts the story &mdash; log one above.</p></div>';
+    return;
+  }
+  list.innerHTML = entries.map(e =>
+    '<div class="entry"><span><b>' + esc(e.note || '(no note)') + '</b><div class="meta">' + esc(e.date) + ' · ' + (e.kind === 'saving' ? 'Saving' : 'Spend') + '</div></span>' +
+    '<span class="right"><span class="amt ' + (e.kind === 'saving' ? 'saving' : 'spend') + '">' +
+    (e.kind === 'saving' ? '+' : '−') + money(e.amount) + '</span>' +
+    (demoOn ? '' : ' <button class="danger" data-del-entry="' + e.id + '">Delete</button>') + '</span></div>').join('');
+}
+
+function renderTab() {
+  document.querySelectorAll('.tabs button').forEach(b => b.classList.toggle('active', b.dataset.tab === activeTab));
+  document.querySelectorAll('.view').forEach(v => v.classList.toggle('active', v.id === 'view-' + activeTab));
+  if (activeTab === 'today') renderToday();
+  if (activeTab === 'budget') renderBudget();
+  if (activeTab === 'activity') renderActivity();
+  if (activeTab === 'charts') renderCharts();
+}
+
+/* ---------- charts: hand-rolled SVG, no libraries ---------- */
+const CAT_COLORS = ['#C9A227', '#7A9E8F', '#8A7FA8', '#A87F6B', '#6B8CA8', '#9AA86B', '#B08D57'];
+const CH_INK = '#F5F5F4', CH_MUT = '#A1A1AA', CH_FAINT = '#71717A', CH_LINE = 'rgba(255,255,255,.08)';
+const CH_ACCENT = '#C9A227';
+function shortName(n) { n = String(n == null ? '' : n); return n.length > 16 ? n.slice(0, 15) + '…' : n; }
+function chartBlank(title, hint) {
+  return '<div class="blank"><p class="serifline">' + esc(title) + '</p><p>' + esc(hint) + '</p></div>';
+}
+function catFor(note, cats) {
+  const n = String(note || '').toLowerCase().trim();
+  if (!n) return 'Other';
+  for (const c of cats) {
+    const cn = String(c.name || '').toLowerCase().trim();
+    if (!cn) continue;
+    if (n === cn || n.indexOf(cn) !== -1) return c.name;
+  }
+  for (const c of cats) {
+    const cn = String(c.name || '').toLowerCase().trim();
+    if (cn.length >= 4 && n.length >= 3 && cn.indexOf(n) !== -1) return c.name;
+  }
+  return 'Other';
+}
+function chartData() {
+  const b = getBudget(viewKey());
+  const entries = monthEntries();
+  const spends = entries.filter(e => e.kind === 'spend');
+  const saves = entries.filter(e => e.kind === 'saving');
+  const dim = daysIn(view.y, view.m);
+  const cats = (b.categories || []).map(c => ({ name: c.name, amount: Number(c.amount || 0) }));
+  const byCat = {};
+  cats.forEach(c => { byCat[c.name] = 0; });
+  byCat['Other'] = 0;
+  spends.forEach(e => { const k = catFor(e.note, cats); byCat[k] = (byCat[k] || 0) + Number(e.amount || 0); });
+  const perDay = new Array(dim + 1).fill(0);
+  spends.forEach(e => { const day = parseInt(String(e.date).slice(8, 10), 10); if (day >= 1 && day <= dim) perDay[day] += Number(e.amount || 0); });
+  const saveDay = new Array(dim + 1).fill(0);
+  saves.forEach(e => { const day = parseInt(String(e.date).slice(8, 10), 10); if (day >= 1 && day <= dim) saveDay[day] += Number(e.amount || 0); });
+  const cumSpend = [0], cumSave = [0];
+  for (let day = 1; day <= dim; day++) { cumSpend[day] = cumSpend[day - 1] + perDay[day]; cumSave[day] = cumSave[day - 1] + saveDay[day]; }
+  return { b: b, entries: entries, spends: spends, saves: saves, dim: dim, cats: cats, byCat: byCat,
+    perDay: perDay, cumSpend: cumSpend, cumSave: cumSave,
+    spent: spends.reduce((s, e) => s + Number(e.amount || 0), 0),
+    saved: saves.reduce((s, e) => s + Number(e.amount || 0), 0),
+    budget: num(b.budget) };
+}
+function svgOpen(w, h) { return '<svg viewBox="0 0 ' + w + ' ' + h + '" role="img" aria-label="chart">'; }
+function chartCategory(d) {
+  const rows = [];
+  d.cats.forEach(c => rows.push({ name: c.name, val: d.byCat[c.name] || 0 }));
+  if (d.byCat['Other'] > 0) rows.push({ name: 'Other', val: d.byCat['Other'] });
+  const total = rows.reduce((s, r) => s + r.val, 0);
+  if (!total) return chartBlank('No spending to break down yet.', 'Charts appear once you log spending.');
+  rows.sort((a, b) => b.val - a.val);
+  const max = rows[0].val;
+  const W = 600, rowH = 30, barX = 128, barW = 332, valX = 472;
+  let s = svgOpen(W, rows.length * rowH + 8);
+  rows.forEach((r, i) => {
+    const y = 8 + i * rowH, bw = max > 0 ? Math.max(2, r.val / max * barW) : 0;
+    const col = CAT_COLORS[i % CAT_COLORS.length];
+    const pct = total > 0 ? Math.round(r.val / total * 100) : 0;
+    s += '<text x="0" y="' + (y + 17) + '" font-size="12" fill="' + CH_MUT + '">' + esc(shortName(r.name)) + '</text>';
+    s += '<rect class="cbar-h" style="animation-delay:' + Math.min(i * 60, 420) + 'ms" x="' + barX + '" y="' + (y + 4) + '" width="' + bw.toFixed(1) + '" height="16" rx="2" fill="' + col + '"><title>' + esc(r.name) + ': ' + money(r.val) + ' (' + pct + '%)</title></rect>';
+    s += '<text x="' + valX + '" y="' + (y + 17) + '" font-size="12" fill="' + CH_INK + '">' + money(r.val) + ' · ' + pct + '%</text>';
+  });
+  return s + '</svg>';
+}
+function chartDays(d) {
+  if (!d.spent) return chartBlank('Nothing spent yet this month.', 'Charts appear once you log spending.');
+  const W = 600, H = 190, top = 18, bot = H - 26, plotH = bot - top;
+  const max = Math.max.apply(null, d.perDay.slice(1));
+  const left = 46, right = 8, plotW = W - left - right;
+  const bw = plotW / d.dim;
+  let s = svgOpen(W, H);
+  [0, 0.5, 1].forEach(f => {
+    const y = bot - f * plotH;
+    s += '<line x1="' + left + '" y1="' + y.toFixed(1) + '" x2="' + (W - right) + '" y2="' + y.toFixed(1) + '" stroke="' + CH_LINE + '" stroke-width="1"/>';
+    s += '<text x="' + (left - 6) + '" y="' + (y + 4) + '" font-size="11" text-anchor="end" fill="' + CH_FAINT + '">' + money(max * f) + '</text>';
+  });
+  for (let day = 1; day <= d.dim; day++) {
+    const v = d.perDay[day];
+    const x = left + (day - 1) * bw + 1;
+    const w = Math.max(1, bw - 2);
+    if (v > 0) {
+      const h = Math.max(2, v / max * plotH);
+      s += '<rect class="cbar-v" style="animation-delay:' + Math.min(day * 12, 360) + 'ms" x="' + x.toFixed(1) + '" y="' + (bot - h).toFixed(1) + '" width="' + w.toFixed(1) + '" height="' + h.toFixed(1) + '" rx="1" fill="' + CH_ACCENT + '"><title>Day ' + day + ': ' + money(v) + '</title></rect>';
+    }
+    if (day === 1 || day === d.dim || day % 7 === 0) {
+      s += '<text x="' + (x + w / 2).toFixed(1) + '" y="' + (H - 8) + '" font-size="11" text-anchor="middle" fill="' + CH_FAINT + '">' + day + '</text>';
+    }
+  }
+  return s + '</svg>';
+}
+function chartBudgetVs(d) {
+  const rows = d.cats.map(c => ({ name: c.name, budget: c.amount, actual: d.byCat[c.name] || 0 }));
+  if (d.byCat['Other'] > 0) rows.push({ name: 'Other', budget: null, actual: d.byCat['Other'] });
+  const hasAny = rows.some(r => (r.budget || 0) > 0 || r.actual > 0);
+  if (!hasAny) return chartBlank('No budgets or spending to compare yet.', 'Set a bucket in the Budget tab or log spending, and the comparison appears here.');
+  rows.sort((a, b) => Math.max(b.budget || 0, b.actual) - Math.max(a.budget || 0, a.actual));
+  const max = Math.max.apply(null, rows.map(r => Math.max(r.budget || 0, r.actual, 1)));
+  const W = 600, rowH = 36, barX = 128, barW = 332, valX = 472;
+  let s = svgOpen(W, rows.length * rowH + 8);
+  rows.forEach((r, i) => {
+    const y = 8 + i * rowH;
+    const col = CAT_COLORS[i % CAT_COLORS.length];
+    s += '<text x="0" y="' + (y + 15) + '" font-size="12" fill="' + CH_MUT + '">' + esc(shortName(r.name)) + '</text>';
+    if (r.budget != null && r.budget > 0) {
+      const bw = Math.max(2, r.budget / max * barW);
+      s += '<rect x="' + barX + '" y="' + (y + 3) + '" width="' + bw.toFixed(1) + '" height="7" rx="2" fill="none" stroke="' + CH_MUT + '" stroke-width="1"><title>' + esc(r.name) + ' budget: ' + money(r.budget) + '</title></rect>';
+    }
+    const aw = r.actual > 0 ? Math.max(2, r.actual / max * barW) : 0;
+    if (aw > 0) s += '<rect class="cbar-h" style="animation-delay:' + Math.min(i * 60, 420) + 'ms" x="' + barX + '" y="' + (y + 16) + '" width="' + aw.toFixed(1) + '" height="7" rx="2" fill="' + col + '"><title>' + esc(r.name) + ' actual: ' + money(r.actual) + '</title></rect>';
+    s += '<text x="' + valX + '" y="' + (y + 15) + '" font-size="12" fill="' + CH_INK + '">' + money(r.actual) + (r.budget != null ? ' / ' + money(r.budget) : '') + '</text>';
+  });
+  return s + '</svg>';
+}
+function chartPace(d) {
+  const budget = d.budget;
+  if (budget == null && !d.spent) return chartBlank('Nothing to pace yet.', 'Log spending, or set a budget, and the trajectory appears here.');
+  const W = 600, H = 230, left = 52, right = 14, top = 16, bot = H - 28;
+  const plotW = W - left - right, plotH = bot - top;
+  const maxY = Math.max(budget || 0, d.cumSpend[d.dim], 1);
+  const X = day => left + (day - 1) / Math.max(1, d.dim - 1) * plotW;
+  const Y = v => bot - v / maxY * plotH;
+  let s = svgOpen(W, H);
+  [0, 0.5, 1].forEach(f => {
+    const y = Y(maxY * f);
+    s += '<line x1="' + left + '" y1="' + y.toFixed(1) + '" x2="' + (W - right) + '" y2="' + y.toFixed(1) + '" stroke="' + CH_LINE + '" stroke-width="1"/>';
+    s += '<text x="' + (left - 6) + '" y="' + (y + 4) + '" font-size="11" text-anchor="end" fill="' + CH_FAINT + '">' + money(maxY * f) + '</text>';
+  });
+  if (budget != null && budget > 0) {
+    s += '<line class="cfade" x1="' + X(1).toFixed(1) + '" y1="' + Y(budget / d.dim).toFixed(1) + '" x2="' + X(d.dim).toFixed(1) + '" y2="' + Y(budget).toFixed(1) + '" stroke="' + CH_MUT + '" stroke-width="1.5" stroke-dasharray="5 4"/>';
+    s += '<text x="' + (W - right) + '" y="' + (Y(budget) - 6).toFixed(1) + '" font-size="11" text-anchor="end" fill="' + CH_MUT + '">Even pace · ' + money(budget) + '</text>';
+  }
+  let pts = '';
+  for (let day = 1; day <= d.dim; day++) pts += X(day).toFixed(1) + ',' + Y(d.cumSpend[day]).toFixed(1) + ' ';
+  pts = pts.trim();
+  const area = 'M' + X(1).toFixed(1) + ',' + bot + ' L' + pts.split(' ').join(' L') + ' L' + X(d.dim).toFixed(1) + ',' + bot + ' Z';
+  s += '<path class="cfade" d="' + area + '" fill="' + CH_ACCENT + '" opacity="0.12"/>';
+  s += '<polyline class="cfade" points="' + pts + '" fill="none" stroke="' + CH_ACCENT + '" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>';
+  const pday = paceDayOf();
+  if (pday > 0) {
+    const x = X(pday);
+    s += '<line x1="' + x.toFixed(1) + '" y1="' + top + '" x2="' + x.toFixed(1) + '" y2="' + bot + '" stroke="' + CH_INK + '" stroke-width="1"/>';
+    s += '<circle cx="' + x.toFixed(1) + '" cy="' + Y(d.cumSpend[pday]).toFixed(1) + '" r="4" fill="' + CH_INK + '"><title>Today (day ' + pday + '): ' + money(d.cumSpend[pday]) + ' spent</title></circle>';
+    s += '<text x="' + x.toFixed(1) + '" y="' + (H - 8) + '" font-size="11" text-anchor="middle" fill="' + CH_INK + '">Today</text>';
+  }
+  s += '<text x="' + left + '" y="' + (H - 8) + '" font-size="11" fill="' + CH_FAINT + '">Day 1</text>';
+  s += '<text x="' + (W - right) + '" y="' + (H - 8) + '" font-size="11" text-anchor="end" fill="' + CH_FAINT + '">Day ' + d.dim + '</text>';
+  return s + '</svg>';
+}
+function chartSave(d) {
+  if (!d.saved) return chartBlank('No savings logged this month yet.', 'Log a saving entry and the cushion curve appears here.');
+  const W = 600, H = 190, left = 52, right = 14, top = 16, bot = H - 28;
+  const plotW = W - left - right, plotH = bot - top;
+  const maxY = Math.max(d.cumSave[d.dim], 1);
+  const X = day => left + (day - 1) / Math.max(1, d.dim - 1) * plotW;
+  const Y = v => bot - v / maxY * plotH;
+  let s = svgOpen(W, H);
+  [0, 0.5, 1].forEach(f => {
+    const y = Y(maxY * f);
+    s += '<line x1="' + left + '" y1="' + y.toFixed(1) + '" x2="' + (W - right) + '" y2="' + y.toFixed(1) + '" stroke="' + CH_LINE + '" stroke-width="1"/>';
+    s += '<text x="' + (left - 6) + '" y="' + (y + 4) + '" font-size="11" text-anchor="end" fill="' + CH_FAINT + '">' + money(maxY * f) + '</text>';
+  });
+  let pts = '';
+  for (let day = 1; day <= d.dim; day++) pts += X(day).toFixed(1) + ',' + Y(d.cumSave[day]).toFixed(1) + ' ';
+  pts = pts.trim();
+  const area = 'M' + X(1).toFixed(1) + ',' + bot + ' L' + pts.split(' ').join(' L') + ' L' + X(d.dim).toFixed(1) + ',' + bot + ' Z';
+  s += '<path class="cfade" d="' + area + '" fill="' + CH_ACCENT + '" opacity="0.12"/>';
+  s += '<polyline class="cfade" points="' + pts + '" fill="none" stroke="' + CH_ACCENT + '" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>';
+  s += '<text x="' + (W - right) + '" y="' + (Y(d.cumSave[d.dim]) - 8).toFixed(1) + '" font-size="11" text-anchor="end" fill="' + CH_INK + '">' + money(d.cumSave[d.dim]) + ' saved</text>';
+  s += '<text x="' + left + '" y="' + (H - 8) + '" font-size="11" fill="' + CH_FAINT + '">Day 1</text>';
+  s += '<text x="' + (W - right) + '" y="' + (H - 8) + '" font-size="11" text-anchor="end" fill="' + CH_FAINT + '">Day ' + d.dim + '</text>';
+  return s + '</svg>';
+}
+function renderCharts() {
+  const d = chartData();
+  document.getElementById('chartPace').innerHTML = chartPace(d);
+  document.getElementById('chartCat').innerHTML = chartCategory(d);
+  document.getElementById('chartDays').innerHTML = chartDays(d);
+  document.getElementById('chartBudget').innerHTML = chartBudgetVs(d);
+  document.getElementById('chartSave').innerHTML = chartSave(d);
+  const leg = document.getElementById('paceLegend');
+  const pday = paceDayOf();
+  if (d.budget != null && d.budget > 0 && pday > 0) {
+    const expected = d.budget * pday / d.dim, diff = d.cumSpend[pday] - expected;
+    leg.innerHTML = 'Budget <b>' + money(d.budget) + '</b> · Spent <b>' + money(d.cumSpend[pday]) + '</b> by day ' + pday +
+      (diff > 0 ? ' · Over pace by <b>' + money(diff) + '</b>.' : diff < 0 ? ' · Ahead of pace by <b>' + money(-diff) + '</b>.' : ' · Right on pace.');
+  } else if (d.budget != null && d.budget > 0) {
+    leg.innerHTML = 'Budget <b>' + money(d.budget) + '</b> · Spent <b>' + money(d.spent) + '</b> this month.';
+  } else {
+    leg.innerHTML = 'No budget set — the line shows cumulative spend only. Set a budget to see the even-pace line.';
+  }
+}
+
+function setDemoUI() {
+  document.body.classList.toggle('demo-on', demoOn);
+  document.getElementById('demoToggle').textContent = demoOn ? 'Clear demo' : 'View demo';
+  document.getElementById('copyBudget').disabled = demoOn;
+}
+function setDemo(on) {
+  demoOn = on;
+  state.demo = on;
+  save();
+  setDemoUI();
+  vt(renderAll);
+}
+function setKind(k) {
+  entryKind = k;
+  document.getElementById('kindSpend').className = k === 'spend' ? 'on' : '';
+  document.getElementById('kindSaving').className = k === 'saving' ? 'on' : '';
+}
+function renderAll() { renderMonth(); renderTab(); setDemoUI(); }
+
+document.querySelectorAll('.tabs button').forEach(b => {
+  b.addEventListener('click', () => { activeTab = b.dataset.tab; vt(renderTab); });
+});
+document.getElementById('prevMonth').addEventListener('click', () => {
+  view = view.m === 0 ? { y: view.y - 1, m: 11 } : { y: view.y, m: view.m - 1 }; vt(renderAll);
+});
+document.getElementById('nextMonth').addEventListener('click', () => {
+  view = view.m === 11 ? { y: view.y + 1, m: 0 } : { y: view.y, m: view.m + 1 }; vt(renderAll);
+});
+document.getElementById('demoToggle').addEventListener('click', () => setDemo(!demoOn));
+document.getElementById('demoClear').addEventListener('click', () => setDemo(false));
+document.getElementById('quickAdd').addEventListener('click', () => {
+  activeTab = 'activity';
+  vt(() => { renderTab(); const amt = document.getElementById('eAmt'); if (amt) amt.focus(); });
+});
+document.getElementById('kindSpend').addEventListener('click', () => setKind('spend'));
+document.getElementById('kindSaving').addEventListener('click', () => setKind('saving'));
+
+function upsertBudget(patch) {
+  if (demoOn) return;
+  const key = viewKey();
+  const cur = getBudget(key);
+  state.budgets[key] = Object.assign({}, cur, patch);
+  save();
+}
+document.getElementById('inBudget').addEventListener('input', e => upsertBudget({ budget: e.target.value }));
+document.getElementById('inSavings').addEventListener('input', e => upsertBudget({ savings: e.target.value }));
+
+document.getElementById('addCat').addEventListener('click', () => {
+  if (demoOn) return;
+  const name = document.getElementById('catName').value.trim();
+  const amt = num(document.getElementById('catAmt').value);
+  if (!name) { alert('Give the category a name.'); return; }
+  const key = viewKey();
+  const cur = getBudget(key);
+  cur.categories.push({ id: Date.now(), name: name, amount: amt == null ? 0 : amt });
+  state.budgets[key] = cur; save();
+  document.getElementById('catName').value = ''; document.getElementById('catAmt').value = '';
+  renderBudget();
+});
+document.getElementById('catList').addEventListener('click', e => {
+  if (demoOn) return;
+  const id = e.target.dataset.delCat;
+  if (!id) return;
+  const row = e.target.closest ? e.target.closest('.cat') : null;
+  const key = viewKey();
+  const cur = getBudget(key);
+  const remove = () => { cur.categories = cur.categories.filter(c => String(c.id) !== id); state.budgets[key] = cur; save(); renderBudget(); };
+  if (motionOK() && row) { row.classList.add('is-leaving'); setTimeout(remove, 180); }
+  else remove();
+});
+
+document.getElementById('eDate').value = (() => { const n = new Date(); return n.getFullYear() + '-' + String(n.getMonth() + 1).padStart(2, '0') + '-' + String(n.getDate()).padStart(2, '0'); })();
+document.getElementById('addEntry').addEventListener('click', () => {
+  if (demoOn) return;
+  const date = document.getElementById('eDate').value;
+  const note = document.getElementById('eNote').value.trim();
+  const amt = num(document.getElementById('eAmt').value);
+  if (!date) { alert('Pick a date.'); return; }
+  if (amt == null || amt < 0) { alert('Enter an amount of 0 or more.'); return; }
+  state.entries.push({ id: Date.now(), date: date, note: note, amount: amt, kind: entryKind });
+  save();
+  document.getElementById('eNote').value = ''; document.getElementById('eAmt').value = '';
+  renderActivity();
+});
+document.getElementById('entryList').addEventListener('click', e => {
+  if (demoOn) return;
+  const id = e.target.dataset.delEntry;
+  if (!id) return;
+  const row = e.target.closest ? e.target.closest('.entry') : null;
+  const remove = () => { state.entries = state.entries.filter(x => String(x.id) !== id); save(); renderActivity(); };
+  if (motionOK() && row) { row.classList.add('is-leaving'); setTimeout(remove, 180); }
+  else remove();
+});
+
+document.getElementById('copyBudget').addEventListener('click', () => {
+  if (demoOn) return;
+  const ny = view.m === 11 ? view.y + 1 : view.y, nm = view.m === 11 ? 0 : view.m + 1;
+  const nextKey = ymKey(ny, nm);
+  if (state.budgets[nextKey] && !confirm(nextKey + ' already has a budget. Overwrite it with this month\'s budget?')) return;
+  const cur = getBudget(viewKey());
+  state.budgets[nextKey] = JSON.parse(JSON.stringify(cur));
+  save();
+  document.getElementById('planMsg').textContent = 'Budget copied to ' + MONTHS[nm] + ' ' + ny + '.';
+});
+
+document.getElementById('exportCsv').addEventListener('click', () => {
+  const entries = monthEntries().slice().sort((a, b) => (a.date.localeCompare(b.date) || String(a.id).localeCompare(String(b.id))));
+  const q = v => '"' + String(v == null ? '' : v).replace(/"/g, '""') + '"';
+  const lines = ['Date,Note,Amount,Kind'].concat(entries.map(e => [e.date, q(e.note), Number(e.amount || 0).toFixed(2), e.kind].join(',')));
+  const blob = new Blob([lines.join('\n')], { type: 'text/csv' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'ledger-' + (demoOn ? 'demo-' : '') + viewKey() + '.csv';
+  a.click();
+  URL.revokeObjectURL(a.href);
+  document.getElementById('exportMsg').textContent = entries.length + (demoOn ? ' demo entries exported (example data).' : ' entries exported.');
+});
+
+
+/* ---------- motion system: additive only, no app logic changed ---------- */
+function motionOK() { try { return !window.matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (e) { return true; } }
+let vtActive = false;
+function vt(fn) {
+  if (!motionOK()) { fn(); return; }
+  if (document.startViewTransition) {
+    try {
+      vtActive = true;
+      const tr = document.startViewTransition(fn);
+      if (tr && tr.finished && tr.finished.then) tr.finished.then(() => { vtActive = false; }, () => { vtActive = false; });
+      else setTimeout(() => { vtActive = false; }, 400);
+    } catch (e) { vtActive = false; fn(); }
+  } else fn();
+}
+let prevRemaining = null, heroFirst = true;
+function setHeroRemaining(value) {
+  const el = document.getElementById('hRemaining');
+  if (!el) return;
+  if (value == null) { el.textContent = '—'; prevRemaining = null; heroFirst = true; return; }
+  const from = heroFirst ? 0 : prevRemaining;
+  heroFirst = false;
+  if (!motionOK() || vtActive || from == null || from === value || typeof requestAnimationFrame !== 'function') {
+    el.textContent = money(value); prevRemaining = value; return;
+  }
+  const t0 = performance.now(), dur = 600;
+  (function tick(now) {
+    const p = Math.min(1, (now - t0) / dur), e = 1 - Math.pow(1 - p, 3);
+    el.textContent = money(from + (value - from) * e);
+    if (p < 1) requestAnimationFrame(tick);
+  })(t0);
+  prevRemaining = value;
+}
+document.addEventListener('pointerdown', function (ev) {
+  if (!motionOK()) return;
+  const t = ev.target;
+  const b = t && t.closest ? t.closest('button') : null;
+  if (b && b.animate) b.animate([{ transform: 'scale(.97)' }, { transform: 'scale(1)' }], { duration: 150, easing: 'ease-out' });
+});
+
+renderAll();
+</script>
+</body>
+</html>
